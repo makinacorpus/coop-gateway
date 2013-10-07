@@ -1,6 +1,7 @@
 import os
 
 from setuptools import setup, find_packages
+print(find_packages())
 
 here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'README.rst')).read()
@@ -10,7 +11,7 @@ requires = [
     'requests',
 ]
 
-setup(name='Coop-Gateway',
+setup(name='coop-gateway',
       version='0.0',
       description='An application to interface two Django-Coop instances',
       long_description=README + '\n\n' + CHANGES,
