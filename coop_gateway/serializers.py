@@ -16,6 +16,8 @@ organization_default_fields = [
     'contacts',
     'transverse_themes',
     'members',
+    'pref_phone',
+    'pref_email',
 ]
 
 
