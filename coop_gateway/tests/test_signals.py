@@ -28,4 +28,4 @@ class TestPushOrganization(MockTestCase, TestCase):
         serialized = serialize_organization(organization)
         self.requests_mock.put.assert_called_with(
             push_url,
-            content=json.dumps(serialized))
+            data=json.dumps(serialized))
