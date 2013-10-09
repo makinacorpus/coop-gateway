@@ -20,6 +20,14 @@ organization_default_fields = [
     'pref_email',
 ]
 
+person_default_fields = [
+    'uuid',
+    'first_name',
+    'last_name',
+    'contacts',
+    'pref_email',
+]
+
 
 def serialize(obj, include):
     fields = json.loads(serializers.serialize('json', [obj]))[0]['fields']
@@ -70,5 +78,23 @@ def serialize_organization(organization, include=organization_default_fields):
 
     if 'legal_status' in include and organization.legal_status:
         result['legal_status'] = organization.legal_status.slug
+
+    return result
+
+
+def serialize_person(person, include=person_default_fields):
+    result = serialize(person, include)
+
+    if 'contacts' in include:
+        result['contacts'] = [
+            {
+                'uuid': contact.uuid,
+                'content': contact.content,
+            }
+            for contact in person.contacts.all()
+        ]
+
+    if 'pref_email' in include and person.pref_email:
+        result['pref_email'] = person.pref_email.uuid
 
     return result

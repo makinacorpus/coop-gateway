@@ -12,11 +12,33 @@ from coop_local.models import (
     TransverseTheme,
 )
 
-from coop_gateway.serializers import serialize_organization
+from coop_gateway.serializers import (
+    serialize_organization,
+    serialize_person,
+)
 from .mock_test_case import MockTestCase
 
 
-class TestSeralizeOrganization(MockTestCase, TestCase):
+class SeralizeTestCase(MockTestCase):
+
+    def create_contact(self, content_object, **kwargs):
+        kwargs['content_object'] = content_object
+
+        if 'content' not in kwargs:
+            kwargs['content'] = uuid()
+
+        contact = Contact(**kwargs)
+        contact.save()
+        return contact
+
+    def create_person(self):
+        person = Person(first_name=uuid(),
+                        last_name=uuid())
+        person.save()
+        return person
+
+
+class TestSeralizeOrganization(SeralizeTestCase, TestCase):
     def setUp(self):
         self.requests_mock = self.patch('coop_gateway.signals.requests')
 
@@ -29,16 +51,6 @@ class TestSeralizeOrganization(MockTestCase, TestCase):
         organization.save()
         return organization
 
-    def create_contact(self, content_object, **kwargs):
-        kwargs['content_object'] = content_object
-
-        if 'content' not in kwargs:
-            kwargs['content'] = uuid()
-
-        contact = Contact(**kwargs)
-        contact.save()
-        return contact
-
     def create_transverse_theme(self):
         theme = TransverseTheme(name=uuid())
         theme.save()
@@ -48,12 +60,6 @@ class TestSeralizeOrganization(MockTestCase, TestCase):
         legal_status = LegalStatus(label=uuid())
         legal_status.save()
         return legal_status
-
-    def create_person(self):
-        person = Person(first_name=uuid(),
-                        last_name=uuid())
-        person.save()
-        return person
 
     def create_role(self):
         role = Role(label=uuid())
@@ -144,3 +150,25 @@ class TestSeralizeOrganization(MockTestCase, TestCase):
             'person': person.uuid,
             'role': role.uuid
         }])
+
+
+class TestSeralizePerson(SeralizeTestCase, TestCase):
+
+    def tests_defaults(self):
+        person = self.create_person()
+        pref_email = self.create_contact(person)
+        person.pref_email = pref_email
+        person.save()
+
+        result = serialize_person(person)
+
+        self.assertEquals(result, {
+            'uuid': person.uuid,
+            'first_name': person.first_name,
+            'last_name': person.last_name,
+            'pref_email': pref_email.uuid,
+            'contacts': [{
+                'uuid': pref_email.uuid,
+                'content': pref_email.content,
+            }],
+        })

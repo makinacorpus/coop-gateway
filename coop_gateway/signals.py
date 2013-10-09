@@ -4,10 +4,20 @@ import requests
 
 from django.conf import settings
 
-from .serializers import serialize_organization
+from coop_gateway.serializers import (
+    serialize_organization,
+    serialize_person,
+)
+
+
+def push_data(endpoint, data):
+    url = os.path.join(settings.PES_HOST, 'api', endpoint)
+    requests.put(url, data=json.dumps(data))
 
 
 def organization_saved(sender, instance, **kwargs):
-    content = serialize_organization(instance)
-    requests.put(os.path.join(settings.PES_HOST, 'api/'),
-                 data=json.dumps(content))
+    push_data('organizations/', serialize_organization(instance))
+
+
+def person_saved(sender, instance, **kwargs):
+    push_data('persons/', serialize_person(instance))
