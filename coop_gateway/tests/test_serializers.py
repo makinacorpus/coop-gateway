@@ -20,6 +20,11 @@ from .mock_test_case import MockTestCase
 
 
 class SeralizeTestCase(MockTestCase):
+    def setUp(self):
+        self.requests_mock = self.patch('coop_gateway.signals.requests')
+        self.settings_mock = self.patch('coop_gateway.signals.settings')
+        self.settings_mock.PES_HOST = 'http://localhost'
+        self.settings_mock.PES_API_KEY = uuid()
 
     def create_contact(self, content_object, **kwargs):
         kwargs['content_object'] = content_object
@@ -39,8 +44,6 @@ class SeralizeTestCase(MockTestCase):
 
 
 class TestSeralizeOrganization(SeralizeTestCase, TestCase):
-    def setUp(self):
-        self.requests_mock = self.patch('coop_gateway.signals.requests')
 
     def create_organization(self, **kwargs):
 

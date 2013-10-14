@@ -10,9 +10,13 @@ from coop_gateway.serializers import (
 )
 
 
-def push_data(endpoint, data):
+def endpoint_url(endpoint):
     url = os.path.join(settings.PES_HOST, 'api', endpoint)
-    requests.put(url, data=json.dumps(data))
+    return '%s?api_key=%s' % (url, settings.PES_API_KEY)
+
+
+def push_data(endpoint, data):
+    requests.put(endpoint_url(endpoint), data=json.dumps(data))
 
 
 def organization_saved(sender, instance, **kwargs):

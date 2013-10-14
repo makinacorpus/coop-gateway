@@ -27,6 +27,9 @@ Add the url of the aggregator to your settings::
 
     PES_HOST = 'http://domain.tld'
 
+Add the API key of the aggregator to your settings::
+    PES_API_KEY = 'TheApiKey'
+
 Testing
 =======
 
