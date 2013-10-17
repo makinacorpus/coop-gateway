@@ -1,7 +1,14 @@
 import json
 
+import dateutil
+
 from django.core import serializers
+
 from coop_local.models import Engagement
+from coop_local.models import (
+    Contact,
+    LegalStatus,
+)
 
 organization_default_fields = [
     'uuid',
@@ -98,3 +105,63 @@ def serialize_person(person, include=person_default_fields):
         result['pref_email'] = person.pref_email.uuid
 
     return result
+
+
+def setattr_from(obj, attr, data, default=None, parse=lambda x: x):
+    if attr in data:
+        value = parse(data[attr])
+        setattr(obj, attr, value)
+    else:
+        setattr(obj, attr, default)
+
+
+def parse_date(value):
+    if value is None:
+        return
+    return dateutil.parser.parse(value)
+
+
+def get_legal_status(slug):
+    try:
+        return LegalStatus.objects.get(slug=slug)
+    except Exception:
+        return None
+
+
+def get_contact(uuid):
+    try:
+        return Contact.objects.get(uuid=uuid)
+    except Exception:
+        return None
+
+
+def deserialize_organization(organization, data):
+    organization.uuid = data['uuid']
+    organization.title = data['title']
+
+    setattr_from(organization, 'acronym', data)
+    setattr_from(organization, 'annual_revenue', data)
+    setattr_from(organization, 'birth', data,
+                 parse=parse_date)
+    setattr_from(organization, 'legal_status', data,
+                 parse=get_legal_status)
+    setattr_from(organization, 'pref_email', data,
+                 parse=get_contact)
+    setattr_from(organization, 'pref_phone', data,
+                 parse=get_contact)
+    setattr_from(organization, 'testimony', data, '')
+    setattr_from(organization, 'web', data)
+    setattr_from(organization, 'workforce', data)
+
+
+def deserialize_person(person, data):
+    person.uuid = data['uuid']
+    person.first_name = data['first_name']
+    person.last_name = data['last_name']
+    setattr_from(person, 'pref_email', data, parse=get_contact)
+
+
+def deserialize_contact(content_object, contact, data):
+    contact.uuid = data['uuid']
+    contact.content = data['content']
+    contact.content_object = content_object

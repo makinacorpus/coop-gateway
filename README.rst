@@ -28,7 +28,12 @@ Add the url of the aggregator to your settings::
     PES_HOST = 'http://domain.tld'
 
 Add the API key of the aggregator to your settings::
+
     PES_API_KEY = 'TheApiKey'
+
+To enable retrieving from PES_HOST add a cron job with::
+
+    python path/to/project/manage.py pes_import
 
 Testing
 =======
