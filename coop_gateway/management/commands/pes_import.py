@@ -70,47 +70,40 @@ def delete_old_contacts(content_object, data):
             contact.delete()
 
 
-class PesImportOrganisation(object):
-    def __init__(self):
-        self.sid = None
+class PesImport(object):
 
-    def _save_organization(self, organization):
-        post_save.disconnect(organization_saved, Organization)
-        organization.save()
-        post_save.connect(organization_saved, Organization)
-
-    def _map(self, organization, data):
-        deserialize_organization(organization, data)
-        self._save_organization(organization)
+    def _map(self, instance, data):
+        self._deserialize(instance, data)
+        self._save(instance)
 
         if 'contacts' in data:
             for contact_data in data['contacts']:
-                update_contact(organization, contact_data)
+                update_contact(instance, contact_data)
 
-        self._save_organization(organization)
+        self._save(instance)
 
     def _is_update(self, data):
-        return ForeignOrganization.objects.filter(uuid=data['uuid']).all()
+        return self.foreign_model.objects.filter(uuid=data['uuid']).all()
 
     def _is_create(self, data):
-        return not Organization.objects.filter(uuid=data['uuid']).all()
+        return not self.model.objects.filter(uuid=data['uuid']).all()
 
     def _update(self, data):
-        sys.stdout.write('Update organization %s\n' % data['uuid'])
-        organization = Organization.objects.get(uuid=data['uuid'])
+        sys.stdout.write('Update %s %s\n' % (self.model, data['uuid']))
+        instance = self.model.objects.get(uuid=data['uuid'])
 
-        self._map(organization, data)
-        delete_old_contacts(organization, data.get('contacts', []))
+        self._map(instance, data)
+        delete_old_contacts(instance, data.get('contacts', []))
 
     def _create(self, data):
-        sys.stdout.write('Create organization %s\n' % data['uuid'])
-        ForeignOrganization(uuid=data['uuid']).save()
-        organization = Organization()
+        sys.stdout.write('Create %s %s\n' % (self.model, data['uuid']))
+        self.foreign_model(uuid=data['uuid']).save()
+        instance = self.model()
 
-        self._map(organization, data)
+        self._map(instance, data)
 
     def handle(self):
-        url = os.path.join(settings.PES_HOST, 'api/organizations/')
+        url = os.path.join(settings.PES_HOST, self.endpoint)
         sys.stdout.write('GET %s\n' % url)
         response = requests.get(url)
         response.raise_for_status()
@@ -130,56 +123,30 @@ class PesImportOrganisation(object):
             transaction.commit()
 
 
-class PesImportPerson(object):
+class PesImportOrganisation(PesImport):
+    endpoint = 'api/organizations/'
+    model = Organization
+    foreign_model = ForeignOrganization
 
-    def _save_person(self, person):
+    _deserialize = staticmethod(deserialize_organization)
+
+    def _save(self, organization):
+        post_save.disconnect(organization_saved, Organization)
+        organization.save()
+        post_save.connect(organization_saved, Organization)
+
+
+class PesImportPerson(PesImport):
+    endpoint = 'api/persons/'
+    model = Person
+    foreign_model = ForeignPerson
+
+    _deserialize = staticmethod(deserialize_person)
+
+    def _save(self, person):
         post_save.disconnect(person_saved, Person)
         person.save()
         post_save.connect(person_saved, Person)
-
-    def _update_person(self, person, data):
-        deserialize_person(person, data)
-        self._save_person(person)
-
-        if 'contacts' in data:
-            for contact_data in data['contacts']:
-                update_contact(person, contact_data)
-
-        self._save_person(person)
-
-    def _is_update(self, data):
-        return ForeignPerson.objects.filter(uuid=data['uuid']).all()
-
-    def _is_create(self, data):
-        return not Person.objects.filter(uuid=data['uuid']).all()
-
-    def handle(self):
-        url = os.path.join(settings.PES_HOST, 'api/persons/')
-        sys.stdout.write('GET %s\n' % url)
-        response = requests.get(url)
-        response.raise_for_status()
-
-        for data in response.json():
-            if self._is_update(data):
-                try:
-                    sys.stdout.write('Update person %s\n' % data['uuid'])
-                    person = Person.objects.get(uuid=data['uuid'])
-
-                    self._update_person(person, data)
-                    delete_old_contacts(person, data.get('contacts', []))
-                except Exception as e:
-                    sys.stdout.write('Error %s\n' % e)
-                    transaction.rollback()
-            elif self._is_create(data):
-                try:
-                    sys.stdout.write('Create person %s\n' % data['uuid'])
-                    ForeignPerson(uuid=data['uuid']).save()
-                    person = Person()
-
-                    self._update_person(person, data)
-                except Exception as e:
-                    sys.stdout.write('Error %s\n' % e)
-                    transaction.rollback()
 
 
 class PesImportCommand(BaseCommand):
