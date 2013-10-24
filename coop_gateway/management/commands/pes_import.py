@@ -21,6 +21,7 @@ from coop_local.models import (
     Engagement,
     Role,
     TransverseTheme,
+    LegalStatus,
 )
 
 from ...models import (
@@ -243,7 +244,19 @@ class PesImportRoles(PesImport):
 class PesImportCommand(BaseCommand):
     help = 'Imports data from the PES'
 
-    def import_themes(self):
+    def import_legal_statuses(self):
+        url = os.path.join(settings.PES_HOST, 'api/legal_statuses/')
+        sys.stdout.write('GET %s\n' % url)
+        response = requests.get(url)
+        response.raise_for_status()
+
+        for data in response.json():
+            if not LegalStatus.objects.filter(slug=data['slug']).all():
+                sys.stdout.write('Create LegalStatus %s\n' % data['label'])
+                legal_status = LegalStatus(label=data['label'])
+                legal_status.save()
+
+    def import_transverse_themes(self):
         url = os.path.join(settings.PES_HOST, 'api/transverse_themes/')
         sys.stdout.write('GET %s\n' % url)
         response = requests.get(url)
@@ -251,14 +264,14 @@ class PesImportCommand(BaseCommand):
         translations = {}
 
         for data in response.json():
-            matching_themes = TransverseTheme.objects.filter(
+            matches = TransverseTheme.objects.filter(
                 name=data['name']
             ).all()
 
-            if matching_themes:
-                transverse_theme = matching_themes[0]
+            if matches:
+                transverse_theme = matches[0]
             else:
-                sys.stdout.write('Create %s %s\n' % (self.model, data['name']))
+                sys.stdout.write('Create TransverseTheme %s\n' % data['name'])
                 transverse_theme = TransverseTheme(name=data['name'])
                 transverse_theme.save()
 
@@ -282,7 +295,8 @@ class PesImportCommand(BaseCommand):
 
     def handle(self, *args, **options):
         self.translations = {}
-        self.import_themes()
+        self.import_legal_statuses()
+        self.import_transverse_themes()
         self.import_roles()
         self.import_persons()
         self.import_organizations()
