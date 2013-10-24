@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from datetime import datetime
 
 import dateutil
 import requests
@@ -55,6 +56,23 @@ def serialize(obj, include):
     return result
 
 
+def memcache(seconds):
+
+    def decorator(func):
+        timestamp = None
+        cache = None
+
+        def wrapper():
+            if timestamp is None or timestamp - datetime.now() > seconds:
+                cache = func()
+            return cache
+
+        return wrapper
+
+    return decorator
+
+
+@memcache(3600)
 def get_pes_roles_by_slug():
     url = os.path.join(settings.PES_HOST, 'api/roles/')
     sys.stdout.write('GET %s\n' % url)
