@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 from shortuuid import uuid
+from mock import MagicMock
 
 from coop_local.models import (
     Contact,
@@ -23,6 +24,7 @@ class SeralizeTestCase(MockTestCase):
     def setUp(self):
         self.requests_mock = self.patch('coop_gateway.signals.requests')
         self.settings_mock = self.patch('coop_gateway.signals.settings')
+
         self.settings_mock.PES_HOST = 'http://localhost'
         self.settings_mock.PES_API_KEY = uuid()
 
@@ -145,13 +147,22 @@ class TestSeralizeOrganization(SeralizeTestCase, TestCase):
         organization = self.create_organization()
         person = self.create_person()
         role = self.create_role()
+        pes_role = {
+            'slug': role.slug,
+            'uuid': uuid()
+        }
         self.create_engagement(organization, person, role)
+
+        requests_mock = self.patch('coop_gateway.serializers.requests')
+        response_mock = MagicMock()
+        requests_mock.get.return_value = response_mock
+        response_mock.json.return_value = [pes_role]
 
         result = serialize_organization(organization, ['members'])
 
         self.assertEquals(result['members'], [{
             'person': person.uuid,
-            'role': role.uuid
+            'role': pes_role['uuid']
         }])
 
 

@@ -1,14 +1,19 @@
 import json
+import os
+import sys
 
 import dateutil
+import requests
 import shortuuid
 
+from django.conf import settings
 from django.core import serializers
 
 from coop_local.models import Engagement
 from coop_local.models import (
     Contact,
     LegalStatus,
+    Role,
 )
 
 organization_default_fields = [
@@ -50,6 +55,26 @@ def serialize(obj, include):
     return result
 
 
+def get_pes_roles_by_slug():
+    url = os.path.join(settings.PES_HOST, 'api/roles/')
+    sys.stdout.write('GET %s\n' % url)
+    response = requests.get(url)
+    response.raise_for_status()
+    return dict([
+        (role['slug'], role['uuid'])
+        for role in response.json()
+    ])
+
+
+def translate_role_uuid(role_uuid):
+    pes_roles_by_slug = get_pes_roles_by_slug()
+    local_roles_by_uuid = dict([
+        (role.uuid, role.slug)
+        for role in Role.objects.all()
+    ])
+    return pes_roles_by_slug[local_roles_by_uuid[role_uuid]]
+
+
 def serialize_organization(organization, include=organization_default_fields):
     result = serialize(organization, include)
     if 'contacts' in include:
@@ -71,7 +96,7 @@ def serialize_organization(organization, include=organization_default_fields):
         result['members'] = [
             {
                 'person': engagement.person.uuid,
-                'role': engagement.role.uuid,
+                'role': translate_role_uuid(engagement.role.uuid),
             }
             for engagement in Engagement.objects.filter(
                 organization=organization
