@@ -1,7 +1,5 @@
 # encoding: utf-8
 
-import os
-
 from unittest import TestCase
 from datetime import datetime
 
@@ -10,8 +8,11 @@ from shortuuid import uuid
 from coop_local.models import (
     LegalStatus,
     Organization,
+    Role,
+    Person,
 )
 
+from coop_gateway.management.commands.pes_import import PesImportOrganisations
 from coop_gateway.models import ForeignOrganization
 from coop_gateway.serializers import serialize_organization
 
@@ -19,13 +20,8 @@ from .pes_import_test_case import PesImportTestCase
 
 
 class TestPesImportOrganization(PesImportTestCase, TestCase):
-
-    def test_endpoint_url(self):
-        url = os.path.join(self.settings_mock.PES_HOST, 'api/organizations/')
-
-        self.command.import_organizations()
-
-        self.requests_mock.get.assert_called_with(url)
+    endpoint = 'api/organizations/'
+    handler_class = PesImportOrganisations
 
     def serialized_organization(self, **data):
         result = {
@@ -54,7 +50,7 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
         }
         self.response_mock.json.return_value = [json_organization]
 
-        self.command.import_organizations()
+        self.handler.handle()
 
         Organization.objects.get(uuid=json_organization['uuid'])
 
@@ -65,7 +61,7 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
         }
         self.response_mock.json.return_value = [json_organization]
 
-        self.command.import_organizations()
+        self.handler.handle()
 
         ForeignOrganization.objects.get(uuid=json_organization['uuid'])
 
@@ -76,7 +72,7 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
         }
         self.response_mock.json.return_value = [json_organization]
 
-        self.command.import_organizations()
+        self.handler.handle()
 
         self.assertEquals(len(self.requests_mock.put.mock_calls), 0)
 
@@ -87,10 +83,10 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
             'title': uuid()
         }
         self.response_mock.json.return_value = [json_organization]
-        self.command.import_organizations()
+        self.handler.handle()
         self.response_mock.json.return_value[0]['title'] = uuid()
 
-        self.command.import_organizations()
+        self.handler.handle()
 
         organization = Organization.objects.get(
             uuid=organization_uuid
@@ -111,7 +107,7 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
             'title': uuid()
         }]
 
-        self.command.import_organizations()
+        self.handler.handle()
 
         organization = Organization.objects.get(uuid=uuid_)
         self.assertEquals(
@@ -123,7 +119,7 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
         serialized = self.serialized_organization(**data)
         self.response_mock.json.return_value = [serialized]
 
-        self.command.import_organizations()
+        self.handler.handle()
 
         organization = Organization.objects.get(
             uuid=serialized['uuid']
@@ -186,3 +182,30 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
                 },
             ],
         )
+
+    def test_member_with_translated_roles_import(self):
+        person = Person(uuid=uuid(), first_name=uuid())
+        person.save()
+        json_role = {
+            'uuid': uuid(),
+            'lablel': uuid(),
+        }
+        json_organization = {
+            'uuid': uuid(),
+            'title': uuid(),
+            'members': [
+                {
+                    'role': json_role['uuid'],
+                    'person': person.uuid,
+                }
+            ]
+        }
+        self.response_mock.json.return_value = [json_organization]
+        role = Role(uuid=uuid(), label=uuid())
+        role.save()
+
+        self.handler.role_translations = {
+            json_role['uuid']: role.uuid
+        }
+
+        self.handler.handle()

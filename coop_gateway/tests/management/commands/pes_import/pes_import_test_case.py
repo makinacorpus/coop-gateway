@@ -1,14 +1,16 @@
 # encoding: utf-8
 
+import os
+
 from shortuuid import uuid
 from mock import MagicMock
+
+from django.core.exceptions import ObjectDoesNotExist
 
 from coop_local.models import (
     Contact,
     Organization,
 )
-
-from coop_gateway.management.commands import PesImportCommand
 
 from coop_gateway.tests.mock_test_case import MockTestCase
 
@@ -32,7 +34,7 @@ class PesImportTestCase(MockTestCase):
         self.settings_mock.PES_HOST = 'http://localhost'
         self.settings_mock.PES_API_KEY = uuid()
 
-        self.command = PesImportCommand()
+        self.handler = self.handler_class()
 
     def create_contact(self):
         organization = Organization(uuid=uuid(), title=uuid())
@@ -46,3 +48,17 @@ class PesImportTestCase(MockTestCase):
         contact.save()
 
         return contact
+
+    def assertObjectDoesNotExist(self, model, **kwargs):
+        with self.assertRaises(ObjectDoesNotExist):
+            model.objects.get(**kwargs)
+
+    def assertObjectDoesExist(self, model, **kwargs):
+        model.objects.get(**kwargs)
+
+    def test_endpoint_url(self):
+        url = os.path.join(self.settings_mock.PES_HOST, self.endpoint)
+
+        self.handler.handle()
+
+        self.requests_mock.get.assert_called_with(url)

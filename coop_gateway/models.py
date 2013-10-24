@@ -7,3 +7,7 @@ class ForeignOrganization(models.Model):
 
 class ForeignPerson(models.Model):
     uuid = models.CharField(max_length=255, unique=True)
+
+
+class ForeignRole(models.Model):
+    slug = models.CharField(max_length=255, unique=True)

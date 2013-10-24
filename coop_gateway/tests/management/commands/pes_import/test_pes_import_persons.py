@@ -1,13 +1,12 @@
 # encoding: utf-8
 
-import os
-
 from unittest import TestCase
 
 from shortuuid import uuid
 
 from coop_local.models import Person
 
+from coop_gateway.management.commands.pes_import import PesImportPersons
 from coop_gateway.models import ForeignPerson
 from coop_gateway.serializers import serialize_person
 
@@ -15,13 +14,8 @@ from .pes_import_test_case import PesImportTestCase
 
 
 class TestPesImportPerson(PesImportTestCase, TestCase):
-
-    def test_endpoint_url(self):
-        url = os.path.join(self.settings_mock.PES_HOST, 'api/persons/')
-
-        self.command.import_persons()
-
-        self.requests_mock.get.assert_called_with(url)
+    endpoint = 'api/persons/'
+    handler_class = PesImportPersons
 
     def serialized_person(self, **data):
         result = {
@@ -42,7 +36,7 @@ class TestPesImportPerson(PesImportTestCase, TestCase):
         }
         self.response_mock.json.return_value = [json_person]
 
-        self.command.import_persons()
+        self.handler.handle()
 
         Person.objects.get(uuid=json_person['uuid'])
 
@@ -54,7 +48,7 @@ class TestPesImportPerson(PesImportTestCase, TestCase):
         }
         self.response_mock.json.return_value = [json_person]
 
-        self.command.import_persons()
+        self.handler.handle()
 
         ForeignPerson.objects.get(uuid=json_person['uuid'])
 
@@ -66,7 +60,7 @@ class TestPesImportPerson(PesImportTestCase, TestCase):
         }
         self.response_mock.json.return_value = [json_person]
 
-        self.command.import_persons()
+        self.handler.handle()
 
         self.assertEquals(len(self.requests_mock.put.mock_calls), 0)
 
@@ -78,10 +72,10 @@ class TestPesImportPerson(PesImportTestCase, TestCase):
             'last_name': uuid(),
         }
         self.response_mock.json.return_value = [json_person]
-        self.command.import_persons()
+        self.handler.handle()
         self.response_mock.json.return_value[0]['first_name'] = uuid()
 
-        self.command.import_persons()
+        self.handler.handle()
 
         person = Person.objects.get(
             uuid=person_uuid
@@ -103,7 +97,7 @@ class TestPesImportPerson(PesImportTestCase, TestCase):
             'last_name': uuid(),
         }]
 
-        self.command.import_persons()
+        self.handler.handle()
 
         person = Person.objects.get(uuid=uuid_)
         self.assertEquals(
@@ -115,7 +109,7 @@ class TestPesImportPerson(PesImportTestCase, TestCase):
         serialized = self.serialized_person(**data)
         self.response_mock.json.return_value = [serialized]
 
-        self.command.import_persons()
+        self.handler.handle()
 
         person = Person.objects.get(
             uuid=serialized['uuid']

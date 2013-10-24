@@ -1,6 +1,7 @@
 import json
 
 import dateutil
+import shortuuid
 
 from django.core import serializers
 
@@ -160,8 +161,15 @@ def deserialize_person(person, data):
     person.last_name = data['last_name']
     setattr_from(person, 'pref_email', data, parse=get_contact)
 
+    person.username = shortuuid.uuid()
+
 
 def deserialize_contact(content_object, contact, data):
     contact.uuid = data['uuid']
     contact.content = data['content']
     contact.content_object = content_object
+
+
+def deserialize_role(role, data):
+    role.uuid = data['uuid']
+    role.label = data['label']
