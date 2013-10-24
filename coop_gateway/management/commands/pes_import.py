@@ -20,6 +20,7 @@ from coop_local.models import (
     Person,
     Engagement,
     Role,
+    TransverseTheme,
 )
 
 from ...models import (
@@ -160,7 +161,7 @@ class PesImportOrganisations(PesImport):
 
     def _create_engagement(self, organization, data):
         person = Person.objects.get(uuid=data['person'])
-        role_uuid = self.role_translations.get(data['role'])
+        role_uuid = self.translations['roles'].get(data['role'])
         if role_uuid:
             role = Role.objects.get(uuid=role_uuid)
         else:
@@ -181,6 +182,11 @@ class PesImportOrganisations(PesImport):
     def _map(self, organization, data):
         super(PesImportOrganisations, self)._map(organization, data)
         self._update_members(organization, data)
+
+        for theme_id in data.get('transverse_themes', []):
+            transverse_theme = self.translations['transverse_themes'][theme_id]
+            organization.transverse_themes.add(transverse_theme)
+        self._save(organization)
 
 
 class PesImportPersons(PesImport):
@@ -206,7 +212,7 @@ class PesImportRoles(PesImport):
     _deserialize = staticmethod(deserialize_role)
 
     def __init__(self):
-        self.role_translations = {}
+        self.translations = {}
 
     def _save(self, role):
         role.save()
@@ -226,7 +232,7 @@ class PesImportRoles(PesImport):
                     role = self._create(data)
                     sid = transaction.savepoint_commit(sid)
 
-                self.role_translations[data['uuid']] = role.uuid
+                self.translations[data['uuid']] = role.uuid
         except DatabaseError as e:
             sys.stdout.write('Error %s %s\n' % (type(e), e))
             transaction.rollback(sid)
@@ -237,14 +243,37 @@ class PesImportRoles(PesImport):
 class PesImportCommand(BaseCommand):
     help = 'Imports data from the PES'
 
+    def import_themes(self):
+        url = os.path.join(settings.PES_HOST, 'api/transverse_themes/')
+        sys.stdout.write('GET %s\n' % url)
+        response = requests.get(url)
+        response.raise_for_status()
+        translations = {}
+
+        for data in response.json():
+            matching_themes = TransverseTheme.objects.filter(
+                name=data['name']
+            ).all()
+
+            if matching_themes:
+                transverse_theme = matching_themes[0]
+            else:
+                sys.stdout.write('Create %s %s\n' % (self.model, data['name']))
+                transverse_theme = TransverseTheme(name=data['name'])
+                transverse_theme.save()
+
+            translations[data['id']] = transverse_theme
+
+        self.translations['transverse_themes'] = translations
+
     def import_roles(self):
         handler = PesImportRoles()
         handler.handle()
-        self.role_translations = handler.role_translations
+        self.translations['roles'] = handler.translations
 
     def import_organizations(self):
         handler = PesImportOrganisations()
-        handler.role_translations = self.role_translations
+        handler.translations = self.translations
         handler.handle()
 
     def import_persons(self):
@@ -252,6 +281,8 @@ class PesImportCommand(BaseCommand):
         handler.handle()
 
     def handle(self, *args, **options):
+        self.translations = {}
+        self.import_themes()
         self.import_roles()
         self.import_persons()
         self.import_organizations()

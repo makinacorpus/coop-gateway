@@ -204,8 +204,10 @@ class TestPesImportOrganization(PesImportTestCase, TestCase):
         role = Role(uuid=uuid(), label=uuid())
         role.save()
 
-        self.handler.role_translations = {
-            json_role['uuid']: role.uuid
+        self.handler.translations = {
+            'roles': {
+                json_role['uuid']: role.uuid
+            }
         }
 
         self.handler.handle()
