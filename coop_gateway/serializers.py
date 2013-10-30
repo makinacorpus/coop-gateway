@@ -62,9 +62,10 @@ def memcache(seconds):
         timestamp = None
         cache = None
 
-        def wrapper():
+        def wrapper(timestamp=timestamp, cache=cache):
             if timestamp is None or timestamp - datetime.now() > seconds:
                 cache = func()
+                timestamp = datetime.now()
             return cache
 
         return wrapper

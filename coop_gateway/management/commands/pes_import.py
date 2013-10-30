@@ -9,7 +9,6 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from django.db import (
-    transaction,
     DatabaseError,
 )
 from django.db.models.signals import post_save
@@ -92,32 +91,26 @@ class PesImport(object):
         self._save(instance)
 
     def _exists(self, data):
-        return self.foreign_model.objects.filter(**{
-            self.foreign_key: data[self.foreign_key]
-        }).all()
-
-    def _is_create(self, data):
-        return not self.model.objects.filter(**{
-            self.foreign_key: data[self.foreign_key]
-        }).all()
+        return bool(self.model.objects.filter(**{
+            self.key: data[self.key]
+        }).values())
 
     def _update(self, data):
-        sys.stdout.write('Update %s %s\n' % (self.model, data['uuid']))
         instance = self.model.objects.get(**{
-            self.foreign_key: data[self.foreign_key]
+            self.key: data[self.key]
         })
 
         self._map(instance, data)
         delete_old_contacts(instance, data.get('contacts', []))
 
     def _create(self, data):
-        sys.stdout.write('Create %s %s\n' % (self.model, data['uuid']))
-        self.foreign_model(**{
-            self.foreign_key: data[self.foreign_key]
-        }).save()
         instance = self.model()
-
         self._map(instance, data)
+
+        self.foreign_model(
+            local_object=instance
+        ).save()
+
         return instance
 
     def get_data(self):
@@ -128,27 +121,25 @@ class PesImport(object):
         return response.json()
 
     def handle(self):
-        sid = transaction.savepoint()
-        try:
-            for data in self.get_data():
+        for data in self.get_data():
+            try:
+                sys.stdout.write('%s %s ' % (self.model.__name__,
+                                             data['uuid']))
                 if self._exists(data):
                     self._update(data)
-                    sid = transaction.savepoint_commit(sid)
-                elif self._is_create(data):
+                    sys.stdout.write('Updated\n')
+                else:
                     self._create(data)
-                    sid = transaction.savepoint_commit(sid)
-        except DatabaseError as e:
-            sys.stdout.write('Error %s %s\n' % (type(e), e))
-            transaction.rollback(sid)
-        else:
-            transaction.commit()
+                    sys.stdout.write('Created\n')
+            except DatabaseError as e:
+                sys.stdout.write('Error %s %s\n' % (type(e), e))
 
 
 class PesImportOrganisations(PesImport):
     endpoint = 'api/organizations/'
     model = Organization
     foreign_model = ForeignOrganization
-    foreign_key = 'uuid'
+    key = 'uuid'
 
     _deserialize = staticmethod(deserialize_organization)
 
@@ -164,7 +155,7 @@ class PesImportOrganisations(PesImport):
         person = Person.objects.get(uuid=data['person'])
         role_uuid = self.translations['roles'].get(data['role'])
         if role_uuid:
-            role = Role.objects.get(uuid=role_uuid)
+            role = Role.objects.filter(uuid=role_uuid)[0]
         else:
             role = None
 
@@ -194,7 +185,7 @@ class PesImportPersons(PesImport):
     endpoint = 'api/persons/'
     model = Person
     foreign_model = ForeignPerson
-    foreign_key = 'uuid'
+    key = 'uuid'
 
     _deserialize = staticmethod(deserialize_person)
 
@@ -208,7 +199,7 @@ class PesImportRoles(PesImport):
     endpoint = 'api/roles/'
     model = Role
     foreign_model = ForeignRole
-    foreign_key = 'slug'
+    key = 'label'
 
     _deserialize = staticmethod(deserialize_role)
 
@@ -218,27 +209,21 @@ class PesImportRoles(PesImport):
     def _save(self, role):
         role.save()
 
-    def _exists(self, data):
-        return self.model.objects.filter(
-            slug=data['slug']
-        ).all()
-
     def handle(self):
-        sid = transaction.savepoint()
-        try:
-            for data in self.get_data():
+        for data in self.get_data():
+            try:
+                sys.stdout.write('%s %s ' % (self.model.__name__,
+                                             data['uuid']))
                 if self._exists(data):
-                    role = Role.objects.get(slug=data['slug'])
+                    sys.stdout.write('Found\n')
+                    role = Role.objects.filter(label=data['label'])[0]
                 else:
                     role = self._create(data)
-                    sid = transaction.savepoint_commit(sid)
+                    sys.stdout.write('Created\n')
 
                 self.translations[data['uuid']] = role.uuid
-        except DatabaseError as e:
-            sys.stdout.write('Error %s %s\n' % (type(e), e))
-            transaction.rollback(sid)
-        else:
-            transaction.commit()
+            except DatabaseError as e:
+                sys.stdout.write('Error %s %s\n' % (type(e), e))
 
 
 class PesImportCommand(BaseCommand):
@@ -251,10 +236,16 @@ class PesImportCommand(BaseCommand):
         response.raise_for_status()
 
         for data in response.json():
-            if not LegalStatus.objects.filter(slug=data['slug']).all():
-                sys.stdout.write('Create LegalStatus %s\n' % data['label'])
-                legal_status = LegalStatus(label=data['label'])
-                legal_status.save()
+            try:
+                sys.stdout.write('LegalStatus %s ' % data['slug'])
+                if not LegalStatus.objects.filter(slug=data['slug']).all():
+                    sys.stdout.write('Created\n')
+                    legal_status = LegalStatus(label=data['label'])
+                    legal_status.save()
+                else:
+                    sys.stdout.write('Found\n')
+            except DatabaseError as e:
+                sys.stdout.write('Error %s %s\n' % (type(e), e))
 
     def import_transverse_themes(self):
         url = os.path.join(settings.PES_HOST, 'api/transverse_themes/')
@@ -264,18 +255,23 @@ class PesImportCommand(BaseCommand):
         translations = {}
 
         for data in response.json():
-            matches = TransverseTheme.objects.filter(
-                name=data['name']
-            ).all()
+            try:
+                sys.stdout.write('TransverseTheme %s ' % data['name'])
+                matches = TransverseTheme.objects.filter(
+                    name=data['name']
+                ).all()
 
-            if matches:
-                transverse_theme = matches[0]
-            else:
-                sys.stdout.write('Create TransverseTheme %s\n' % data['name'])
-                transverse_theme = TransverseTheme(name=data['name'])
-                transverse_theme.save()
+                if matches:
+                    sys.stdout.write('Found\n')
+                    transverse_theme = matches[0]
+                else:
+                    transverse_theme = TransverseTheme(name=data['name'])
+                    transverse_theme.save()
+                    sys.stdout.write('Created\n')
 
-            translations[data['id']] = transverse_theme
+                translations[data['id']] = transverse_theme
+            except DatabaseError as e:
+                sys.stdout.write('Error %s %s\n' % (type(e), e))
 
         self.translations['transverse_themes'] = translations
 

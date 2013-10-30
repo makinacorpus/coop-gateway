@@ -20,8 +20,10 @@ def push_data(endpoint, data):
 
 
 def organization_saved(sender, instance, **kwargs):
-    push_data('organizations/', serialize_organization(instance))
+    push_data('organizations/%s/' % instance.uuid,
+              serialize_organization(instance))
 
 
 def person_saved(sender, instance, **kwargs):
-    push_data('persons/', serialize_person(instance))
+    push_data('persons/%s/' % instance.uuid,
+              serialize_person(instance))

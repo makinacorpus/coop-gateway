@@ -1,13 +1,19 @@
 from django.db import models
 
+from coop_local.models import (
+    Organization,
+    Person,
+    Role,
+)
+
 
 class ForeignOrganization(models.Model):
-    uuid = models.CharField(max_length=255, unique=True)
+    local_object = models.ForeignKey(Organization, unique=True)
 
 
 class ForeignPerson(models.Model):
-    uuid = models.CharField(max_length=255, unique=True)
+    local_object = models.ForeignKey(Person, unique=True)
 
 
 class ForeignRole(models.Model):
-    slug = models.CharField(max_length=255, unique=True)
+    local_object = models.ForeignKey(Role, unique=True)
