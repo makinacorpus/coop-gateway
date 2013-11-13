@@ -16,7 +16,13 @@ def endpoint_url(endpoint):
 
 
 def push_data(endpoint, data):
-    requests.put(endpoint_url(endpoint), data=json.dumps(data))
+    print('PUT %s\n%s' % (endpoint_url(endpoint), data))
+    response = requests.put(endpoint_url(endpoint), data=json.dumps(data))
+    print(response.text)
+
+
+def delete_data(endpoint):
+    requests.delete(endpoint_url(endpoint))
 
 
 def organization_saved(sender, instance, **kwargs):
@@ -24,6 +30,14 @@ def organization_saved(sender, instance, **kwargs):
               serialize_organization(instance))
 
 
+def organization_deleted(sender, instance, **kwargs):
+    delete_data('organizations/%s/' % instance.uuid)
+
+
 def person_saved(sender, instance, **kwargs):
     push_data('persons/%s/' % instance.uuid,
               serialize_person(instance))
+
+
+def person_deleted(sender, instance, **kwargs):
+    delete_data('persons/%s/' % instance.uuid)

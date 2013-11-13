@@ -9,7 +9,9 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from django.db import (
+    transaction,
     DatabaseError,
+    IntegrityError,
 )
 from django.db.models.signals import post_save
 
@@ -19,8 +21,6 @@ from coop_local.models import (
     Person,
     Engagement,
     Role,
-    TransverseTheme,
-    LegalStatus,
 )
 
 from ...models import (
@@ -51,13 +51,13 @@ def update_contact(content_object, data):
     contact = get_or_create_object(Contact, uuid=data['uuid'])
 
     if contact.content_object and contact.content_object != content_object:
-        raise Exception('Contact %s do not belong to %s %s' % (
-            contact.uuid, type(content_object), content_object.uuid
-        ))
+        #sys.stdout.write('Contact %s do not belong to %s %s\n' % (
+        #    contact.uuid, type(content_object), content_object.uuid
+        #))
+        return
 
     deserialize_contact(content_object, contact, data)
     contact.save()
-    return contact
 
 
 def is_old_contact(content_object, contact, contact_uuids):
@@ -105,6 +105,7 @@ class PesImport(object):
 
     def _create(self, data):
         instance = self.model()
+        self._save(instance)
         self._map(instance, data)
 
         self.foreign_model(
@@ -120,19 +121,31 @@ class PesImport(object):
         response.raise_for_status()
         return response.json()
 
+    @transaction.commit_manually
     def handle(self):
         for data in self.get_data():
             try:
-                sys.stdout.write('%s %s ' % (self.model.__name__,
-                                             data['uuid']))
+                instance_info = (self.model.__name__, data['uuid'])
+                sid = transaction.savepoint()
                 if self._exists(data):
+                    sys.stdout.write('Update %s %s ' % instance_info)
                     self._update(data)
-                    sys.stdout.write('Updated\n')
                 else:
+                    sys.stdout.write('Create %s %s ' % instance_info)
                     self._create(data)
-                    sys.stdout.write('Created\n')
+                transaction.savepoint_commit(sid)
+                sys.stdout.write('Done\n')
             except DatabaseError as e:
-                sys.stdout.write('Error %s %s\n' % (type(e), e))
+                sys.stderr.write('DatabaseError\n%s\n' % e)
+                transaction.savepoint_rollback(sid)
+            except IntegrityError as e:
+                sys.stderr.write('IntegrityError\n%s\n' % e)
+                transaction.savepoint_rollback(sid)
+            except Exception as e:
+                sys.stderr.write('%s\n%s\n' % (type(e).__name__, e))
+                transaction.savepoint_rollback(sid)
+
+        transaction.commit()
 
 
 class PesImportOrganisations(PesImport):
@@ -171,14 +184,10 @@ class PesImportOrganisations(PesImport):
             for engagement_data in data['members']:
                 self._create_engagement(organization, engagement_data)
 
-    def _map(self, organization, data):
-        super(PesImportOrganisations, self)._map(organization, data)
-        self._update_members(organization, data)
-
-        for theme_id in data.get('transverse_themes', []):
-            transverse_theme = self.translations['transverse_themes'][theme_id]
-            organization.transverse_themes.add(transverse_theme)
-        self._save(organization)
+    #def _map(self, organization, data):
+    #    super(PesImportOrganisations, self)._map(organization, data)
+    #    self._update_members(organization, data)
+    #    self._save(organization)
 
 
 class PesImportPersons(PesImport):
@@ -211,69 +220,21 @@ class PesImportRoles(PesImport):
 
     def handle(self):
         for data in self.get_data():
-            try:
-                sys.stdout.write('%s %s ' % (self.model.__name__,
-                                             data['uuid']))
-                if self._exists(data):
-                    sys.stdout.write('Found\n')
-                    role = Role.objects.filter(label=data['label'])[0]
-                else:
-                    role = self._create(data)
-                    sys.stdout.write('Created\n')
+            if self._exists(data):
+                sys.stdout.write('Update %s %s ' % (self.model.__name__,
+                                                    data['uuid']))
+                role = Role.objects.filter(label=data['label'])[0]
+            else:
+                sys.stdout.write('Create %s %s ' % (self.model.__name__,
+                                                    data['uuid']))
+                role = self._create(data)
 
-                self.translations[data['uuid']] = role.uuid
-            except DatabaseError as e:
-                sys.stdout.write('Error %s %s\n' % (type(e), e))
+            self.translations[data['uuid']] = role.uuid
+            sys.stdout.write('Done\n')
 
 
 class PesImportCommand(BaseCommand):
     help = 'Imports data from the PES'
-
-    def import_legal_statuses(self):
-        url = os.path.join(settings.PES_HOST, 'api/legal_statuses/')
-        sys.stdout.write('GET %s\n' % url)
-        response = requests.get(url)
-        response.raise_for_status()
-
-        for data in response.json():
-            try:
-                sys.stdout.write('LegalStatus %s ' % data['slug'])
-                if not LegalStatus.objects.filter(slug=data['slug']).all():
-                    sys.stdout.write('Created\n')
-                    legal_status = LegalStatus(label=data['label'])
-                    legal_status.save()
-                else:
-                    sys.stdout.write('Found\n')
-            except DatabaseError as e:
-                sys.stdout.write('Error %s %s\n' % (type(e), e))
-
-    def import_transverse_themes(self):
-        url = os.path.join(settings.PES_HOST, 'api/transverse_themes/')
-        sys.stdout.write('GET %s\n' % url)
-        response = requests.get(url)
-        response.raise_for_status()
-        translations = {}
-
-        for data in response.json():
-            try:
-                sys.stdout.write('TransverseTheme %s ' % data['name'])
-                matches = TransverseTheme.objects.filter(
-                    name=data['name']
-                ).all()
-
-                if matches:
-                    sys.stdout.write('Found\n')
-                    transverse_theme = matches[0]
-                else:
-                    transverse_theme = TransverseTheme(name=data['name'])
-                    transverse_theme.save()
-                    sys.stdout.write('Created\n')
-
-                translations[data['id']] = transverse_theme
-            except DatabaseError as e:
-                sys.stdout.write('Error %s %s\n' % (type(e), e))
-
-        self.translations['transverse_themes'] = translations
 
     def import_roles(self):
         handler = PesImportRoles()
@@ -291,8 +252,6 @@ class PesImportCommand(BaseCommand):
 
     def handle(self, *args, **options):
         self.translations = {}
-        self.import_legal_statuses()
-        self.import_transverse_themes()
         self.import_roles()
         self.import_persons()
         self.import_organizations()

@@ -8,12 +8,12 @@ from coop_local.models import (
 
 
 class ForeignOrganization(models.Model):
-    local_object = models.ForeignKey(Organization, unique=True)
+    local_object = models.OneToOneField(Organization)
 
 
 class ForeignPerson(models.Model):
-    local_object = models.ForeignKey(Person, unique=True)
+    local_object = models.OneToOneField(Person)
 
 
 class ForeignRole(models.Model):
-    local_object = models.ForeignKey(Role, unique=True)
+    local_object = models.OneToOneField(Role)
