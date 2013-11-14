@@ -26,7 +26,7 @@ organization_default_fields = [
     'testimony',
     'annual_revenue',
     'workforce',
-    'status',
+    'statut',
     'birth',
     'web',
     'contacts',
@@ -57,24 +57,6 @@ def serialize(obj, include):
     return result
 
 
-def memcache(seconds):
-
-    def decorator(func):
-        last_update = time()
-        cache = None
-
-        def wrapper():
-            if last_update - time() > seconds:
-                cache = func()
-                last_update = time()
-            return cache
-
-        return wrapper
-
-    return decorator
-
-
-@memcache(3600)
 def get_pes_roles_by_slug():
     url = os.path.join(settings.PES_HOST, 'api/roles/')
     sys.stdout.write('GET %s ' % url)
@@ -88,7 +70,6 @@ def get_pes_roles_by_slug():
     ])
 
 
-@memcache(3600)
 def get_pes_legal_statuses():
     url = os.path.join(settings.PES_HOST, 'api/legal_statuses/')
     sys.stdout.write('GET %s\n' % url)
@@ -105,7 +86,6 @@ def get_pes_legal_statuses_by_label():
     ])
 
 
-@memcache(3600)
 def get_pes_legal_statuses_by_slug():
     return dict([
         (role['slug'], role['label'])
@@ -160,8 +140,8 @@ def serialize_organization(organization, include=organization_default_fields):
     if 'pref_email' in include and organization.pref_email:
         result['pref_email'] = organization.pref_email.uuid
 
-    if 'status' in include and organization.status:
-        result['legal_status'] = status_slug(organization.status)
+    if 'statut' in include and organization.statut:
+        result['legal_status'] = status_slug(organization.statut)
 
     return result
 
@@ -226,7 +206,7 @@ def deserialize_organization(organization, data):
     setattr_from(organization, 'web', data)
     setattr_from(organization, 'workforce', data)
 
-    organization.status = get_legal_status(data.get('legal_status'))
+    organization.statut = get_legal_status(data.get('legal_status'))
 
 
 def deserialize_person(person, data):

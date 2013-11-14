@@ -4,6 +4,8 @@ import requests
 
 from django.conf import settings
 
+from coop_local.models import Person
+
 from coop_gateway.serializers import (
     serialize_organization,
     serialize_person,
@@ -18,7 +20,7 @@ def endpoint_url(endpoint):
 def push_data(endpoint, data):
     print('PUT %s\n%s' % (endpoint_url(endpoint), data))
     response = requests.put(endpoint_url(endpoint), data=json.dumps(data))
-    print(response.text)
+    #print(response.text)
 
 
 def delete_data(endpoint):
@@ -26,8 +28,14 @@ def delete_data(endpoint):
 
 
 def organization_saved(sender, instance, **kwargs):
-    push_data('organizations/%s/' % instance.uuid,
-              serialize_organization(instance))
+    data = serialize_organization(instance)
+
+    #Ensure person exists on the pes
+    for member in data['members']:
+        person = Person.objects.get(uuid=member['person'])
+        person_saved(None, person)
+
+    push_data('organizations/%s/' % instance.uuid, data)
 
 
 def organization_deleted(sender, instance, **kwargs):
