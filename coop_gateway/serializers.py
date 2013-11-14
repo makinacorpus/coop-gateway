@@ -128,6 +128,7 @@ def serialize_organization(organization, include=organization_default_fields):
             {
                 'person': engagement.person.uuid,
                 'role': translate_role_uuid(engagement.role.uuid),
+                'role_detail': engagement.role_detail,
             }
             for engagement in Engagement.objects.filter(
                 organization=organization
@@ -180,7 +181,7 @@ def get_legal_status(slug):
         legal_statuses_by_slug = get_pes_legal_statuses_by_slug()
         return STATUTS.REVERTED_CHOICES_DICT[legal_statuses_by_slug[slug]]
     except Exception:
-        return None
+        return 0
 
 
 def get_contact(uuid):

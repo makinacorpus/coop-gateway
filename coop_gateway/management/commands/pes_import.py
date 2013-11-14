@@ -51,9 +51,6 @@ def update_contact(content_object, data):
     contact = get_or_create_object(Contact, uuid=data['uuid'])
 
     if contact.content_object and contact.content_object != content_object:
-        #sys.stdout.write('Contact %s do not belong to %s %s\n' % (
-        #    contact.uuid, type(content_object), content_object.uuid
-        #))
         return
 
     deserialize_contact(content_object, contact, data)
@@ -174,7 +171,8 @@ class PesImportOrganisations(PesImport):
 
         engagement = Engagement(organization=organization,
                                 person=person,
-                                role=role)
+                                role=role,
+                                role_detail=data.get('role_detail', ''))
         engagement.save()
 
     def _update_members(self, organization, data):
@@ -184,10 +182,10 @@ class PesImportOrganisations(PesImport):
             for engagement_data in data['members']:
                 self._create_engagement(organization, engagement_data)
 
-    #def _map(self, organization, data):
-    #    super(PesImportOrganisations, self)._map(organization, data)
-    #    self._update_members(organization, data)
-    #    self._save(organization)
+    def _map(self, organization, data):
+        super(PesImportOrganisations, self)._map(organization, data)
+        self._update_members(organization, data)
+        self._save(organization)
 
 
 class PesImportPersons(PesImport):
