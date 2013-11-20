@@ -4,7 +4,6 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'README.rst')).read()
-CHANGES = open(os.path.join(here, 'CHANGES.rst')).read()
 
 requires = [
     'requests',
@@ -13,7 +12,7 @@ requires = [
 setup(name='coop-gateway',
       version='0.0',
       description='An application to interface two Django-Coop instances',
-      long_description=README + '\n\n' + CHANGES,
+      long_description=README,
       classifiers=[
           "Programming Language :: Python",
           "Topic :: Internet :: WWW/HTTP",

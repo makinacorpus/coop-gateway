@@ -31,27 +31,13 @@ Add the API key of the aggregator to your settings::
 
     PES_API_KEY = 'TheApiKey'
 
-To enable retrieving from PES_HOST add a cron job with::
+Create the required tables with::
 
-    python path/to/project/manage.py pes_import
+    python manage.py syncdb
 
-Testing
-=======
+Enable retrieving from PES_HOST add a cron job with::
 
-Create a django-coop project.
-
-Install coop-gateway in develop mode.
-
-Configure coop-gateway.
-
-Install and configure `django-nose`_.
-
-Run tests::
-
-    cd project
-    python manage.py test coop_gateway
-
-.. _`django-nose`: https://pypi.python.org/pypi/django-nose
+    python manage.py pes_import
 
 Credits
 =======
