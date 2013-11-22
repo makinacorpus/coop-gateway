@@ -4,11 +4,17 @@ import requests
 
 from django.conf import settings
 
-from coop_local.models import Person
+from coop_local.models import (
+    Person,
+    Calendar,
+    Organization,
+)
 
 from coop_gateway.serializers import (
     serialize_organization,
     serialize_person,
+    serialize_calendar,
+    serialize_event,
 )
 
 
@@ -19,8 +25,7 @@ def endpoint_url(endpoint):
 
 def push_data(endpoint, data):
     print('PUT %s\n%s' % (endpoint_url(endpoint), data))
-    response = requests.put(endpoint_url(endpoint), data=json.dumps(data))
-    #print(response.text)
+    requests.put(endpoint_url(endpoint), data=json.dumps(data))
 
 
 def delete_data(endpoint):
@@ -49,3 +54,33 @@ def person_saved(sender, instance, **kwargs):
 
 def person_deleted(sender, instance, **kwargs):
     delete_data('persons/%s/' % instance.uuid)
+
+
+def calendar_saved(sender, instance, **kwargs):
+    push_data('calendars/%s/' % instance.uuid, serialize_calendar(instance))
+
+
+def calendar_deleted(sender, instance, **kwargs):
+    delete_data('calendars/%s/' % instance.uuid)
+
+
+def event_saved(sender, instance, **kwargs):
+    data = serialize_event(instance)
+
+    #Ensure calendar exists on the pes
+    calendar = Calendar.objects.get(uuid=data['calendar'])
+    calendar_saved(None, calendar)
+
+    #Ensure organizations exists on the pes
+    organization = Organization.objects.get(uuid=data['organization'])
+    organization_saved(None, organization)
+
+    for organization_uuid in data['organizations']:
+        organization = Organization.objects.get(uuid=organization_uuid)
+        organization_saved(None, organization)
+
+    push_data('events/%s/' % instance.uuid, data)
+
+
+def event_deleted(sender, instance, **kwargs):
+    delete_data('events/%s/' % instance.uuid)

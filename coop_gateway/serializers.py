@@ -3,7 +3,6 @@
 import json
 import os
 import sys
-from time import time
 
 import dateutil
 import requests
@@ -115,25 +114,33 @@ def serialize_contact(contact):
     }
 
 
+def serialize_contacts(queryset):
+    return [
+        serialize_contact(contact)
+        for contact in queryset.all()
+    ]
+
+
+def serialize_members(queryset):
+    return [
+        {
+            'person': engagement.person.uuid,
+            'role': translate_role_uuid(engagement.role.uuid),
+            'role_detail': engagement.role_detail,
+        }
+        for engagement in queryset.all()
+    ]
+
+
 def serialize_organization(organization, include=organization_default_fields):
     result = serialize(organization, include)
+
     if 'contacts' in include:
-        result['contacts'] = [
-            serialize_contact(contact)
-            for contact in organization.contacts.all()
-        ]
+        result['contacts'] = serialize_contacts(organization.contacts)
 
     if 'members' in include:
-        result['members'] = [
-            {
-                'person': engagement.person.uuid,
-                'role': translate_role_uuid(engagement.role.uuid),
-                'role_detail': engagement.role_detail,
-            }
-            for engagement in Engagement.objects.filter(
-                organization=organization
-            ).all()
-        ]
+        engagements = Engagement.objects.filter(organization=organization)
+        result['members'] = serialize_members(engagements)
 
     if 'pref_phone' in include and organization.pref_phone:
         result['pref_phone'] = organization.pref_phone.uuid
@@ -151,13 +158,32 @@ def serialize_person(person, include=person_default_fields):
     result = serialize(person, include)
 
     if 'contacts' in include:
-        result['contacts'] = [
-            serialize_contact(contact)
-            for contact in person.contacts.all()
-        ]
+        result['contacts'] = serialize_contacts(person.contacts)
 
     if 'pref_email' in include and person.pref_email:
         result['pref_email'] = person.pref_email.uuid
+
+    return result
+
+
+def serialize_calendar(event):
+    return serialize(event, ('uuid', 'title', 'description'))
+
+
+def serialize_event(event):
+    result = serialize(event, (
+        'uuid',
+        'title',
+        'description',
+        'other_organizations',
+        'source_info'))
+
+    result['calendar'] = event.calendar.uuid
+    result['organization'] = getattr(event.organization, 'uuid', None)
+    result['organizations'] = [
+        organization.uuid
+        for organization in event.organizations.all()
+    ]
 
     return result
 
@@ -197,12 +223,9 @@ def deserialize_organization(organization, data):
 
     setattr_from(organization, 'acronym', data)
     setattr_from(organization, 'annual_revenue', data)
-    setattr_from(organization, 'birth', data,
-                 parse=parse_date)
-    setattr_from(organization, 'pref_email', data,
-                 parse=get_contact)
-    setattr_from(organization, 'pref_phone', data,
-                 parse=get_contact)
+    setattr_from(organization, 'birth', data, parse=parse_date)
+    setattr_from(organization, 'pref_email', data, parse=get_contact)
+    setattr_from(organization, 'pref_phone', data, parse=get_contact)
     setattr_from(organization, 'testimony', data, '')
     setattr_from(organization, 'web', data)
     setattr_from(organization, 'workforce', data)
