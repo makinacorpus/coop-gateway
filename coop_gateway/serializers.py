@@ -28,6 +28,7 @@ from coop_local.models.local_models import STATUTS
 organization_default_fields = [
     'uuid',
     'title',
+    'description',
     'acronym',
     'testimony',
     'annual_revenue',
@@ -277,6 +278,7 @@ def deserialize_organization(organization, data):
     organization.uuid = data['uuid']
     organization.title = data['title']
 
+    setattr_from(organization, 'description', data)
     setattr_from(organization, 'acronym', data)
     setattr_from(organization, 'annual_revenue', data)
     setattr_from(organization, 'birth', data, parse=parse_date)
