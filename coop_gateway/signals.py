@@ -34,6 +34,14 @@ def delete_data(endpoint):
     requests.delete(endpoint_url(endpoint))
 
 
+def contact_saved(sender, instance, **kwargs):
+    organization_saved(None, instance.content_object)
+
+
+def contact_deleted(sender, instance, **kwargs):
+    organization_saved(None, instance.content_object)
+
+
 def organization_saved(sender, instance, **kwargs):
     data = serialize_organization(instance)
 

@@ -4,6 +4,7 @@ from django.db.models.signals import (
 )
 from coop_local.models import (
     Calendar,
+    Contact,
     Event,
     Exchange,
     Organization,
@@ -13,6 +14,8 @@ from coop_local.models import (
 from .signals import (
     calendar_deleted,
     calendar_saved,
+    contact_deleted,
+    contact_saved,
     event_deleted,
     event_saved,
     exchange_deleted,
@@ -25,6 +28,9 @@ from .signals import (
     product_saved,
 )
 
+
+post_save.connect(contact_saved, Contact)
+post_delete.connect(contact_deleted, Contact)
 
 post_save.connect(organization_saved, Organization)
 post_delete.connect(organization_deleted, Organization)
