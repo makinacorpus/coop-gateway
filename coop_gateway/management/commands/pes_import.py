@@ -16,24 +16,32 @@ from django.db import (
 from django.db.models.signals import post_save
 
 from coop_local.models import (
+    Calendar,
     Contact,
+    Engagement,
+    Event,
     Organization,
     Person,
-    Engagement,
     Role,
 )
 
 from ...models import (
+    ForeignCalendar,
+    ForeignEvent,
     ForeignOrganization,
     ForeignPerson,
     ForeignRole,
 )
 from ...signals import (
+    calendar_saved,
+    event_saved,
     organization_saved,
     person_saved,
 )
 from ...serializers import (
     deserialize_contact,
+    deserialize_calendar,
+    deserialize_event,
     deserialize_organization,
     deserialize_person,
     deserialize_role,
@@ -77,14 +85,14 @@ def delete_old_contacts(content_object, data):
 
 class PesImport(object):
 
+    def _before_map(self, instance, data):
+        pass
+
+    def _after_map(self, instance, data):
+        pass
+
     def _map(self, instance, data):
         self._deserialize(instance, data)
-        self._save(instance)
-
-        if 'contacts' in data:
-            for contact_data in data['contacts']:
-                update_contact(instance, contact_data)
-
         self._save(instance)
 
     def _exists(self, data):
@@ -92,18 +100,22 @@ class PesImport(object):
             self.key: data[self.key]
         }).values())
 
+    def _after_update(self, instance, data):
+        pass
+
     def _update(self, data):
         instance = self.model.objects.get(**{
             self.key: data[self.key]
         })
 
         self._map(instance, data)
-        delete_old_contacts(instance, data.get('contacts', []))
+        self._after_update(instance, data)
 
     def _create(self, data):
         instance = self.model()
-        self._save(instance)
+        self._before_map(instance, data)
         self._map(instance, data)
+        self._after_map(instance, data)
 
         self.foreign_model(
             local_object=instance
@@ -145,7 +157,21 @@ class PesImport(object):
         transaction.commit()
 
 
-class PesImportOrganisations(PesImport):
+class HasContacts(object):
+
+    def _before_map(self, instance, data):
+        self._save(instance)
+
+    def _update_contacts(self, content_object, data):
+        if 'contacts' in data:
+            for contact_data in data['contacts']:
+                update_contact(content_object, contact_data)
+
+    def _after_update(self, instance, data):
+        delete_old_contacts(instance, data.get('contacts', []))
+
+
+class PesImportOrganisations(HasContacts, PesImport):
     endpoint = 'api/organizations/'
     model = Organization
     foreign_model = ForeignOrganization
@@ -182,13 +208,13 @@ class PesImportOrganisations(PesImport):
             for engagement_data in data['members']:
                 self._create_engagement(organization, engagement_data)
 
-    def _map(self, organization, data):
-        super(PesImportOrganisations, self)._map(organization, data)
+    def _after_map(self, organization, data):
         self._update_members(organization, data)
+        self._update_contacts(organization, data)
         self._save(organization)
 
 
-class PesImportPersons(PesImport):
+class PesImportPersons(HasContacts, PesImport):
     endpoint = 'api/persons/'
     model = Person
     foreign_model = ForeignPerson
@@ -200,6 +226,10 @@ class PesImportPersons(PesImport):
         post_save.disconnect(person_saved, Person)
         person.save()
         post_save.connect(person_saved, Person)
+
+    def _after_map(self, organization, data):
+        self._update_contacts(organization, data)
+        self._save(organization)
 
 
 class PesImportRoles(PesImport):
@@ -231,6 +261,38 @@ class PesImportRoles(PesImport):
             sys.stdout.write('Done\n')
 
 
+class PesImportCalendars(PesImport):
+    endpoint = 'api/calendars/'
+    model = Calendar
+    foreign_model = ForeignCalendar
+    key = 'uuid'
+
+    _deserialize = staticmethod(deserialize_calendar)
+
+    def _save(self, calendar):
+        post_save.disconnect(calendar_saved, Calendar)
+        calendar.save()
+        post_save.connect(calendar_saved, Calendar)
+
+
+class PesImportEvents(PesImport):
+    endpoint = 'api/events/'
+    model = Event
+    foreign_model = ForeignEvent
+    key = 'uuid'
+
+    _deserialize = staticmethod(deserialize_event)
+
+    def _before_map(self, event, data):
+        event.calendar = Calendar.objects.get(uuid=data['calendar'])
+        self._save(event)
+
+    def _save(self, event):
+        post_save.disconnect(event_saved, Event)
+        event.save()
+        post_save.connect(event_saved, Event)
+
+
 class PesImportCommand(BaseCommand):
     help = 'Imports data from the PES'
 
@@ -248,10 +310,20 @@ class PesImportCommand(BaseCommand):
         handler = PesImportPersons()
         handler.handle()
 
+    def import_calendar(self):
+        handler = PesImportCalendars()
+        handler.handle()
+
+    def import_events(self):
+        handler = PesImportEvents()
+        handler.handle()
+
     def handle(self, *args, **options):
         self.translations = {}
         self.import_roles()
         self.import_persons()
         self.import_organizations()
+        self.import_calendar()
+        self.import_events()
 
 Command = PesImportCommand

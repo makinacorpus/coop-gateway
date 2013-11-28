@@ -13,3 +13,11 @@ class ForeignPerson(models.Model):
 
 class ForeignRole(models.Model):
     local_object = models.OneToOneField(get_model('coop_local', 'Role'))
+
+
+class ForeignCalendar(models.Model):
+    local_object = models.OneToOneField(get_model('coop_local', 'Calendar'))
+
+
+class ForeignEvent(models.Model):
+    local_object = models.OneToOneField(get_model('coop_local', 'Event'))

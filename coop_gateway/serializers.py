@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from time import time
 
 import dateutil
 import requests
@@ -12,8 +13,10 @@ from django.conf import settings
 from django.core import serializers
 
 from coop_local.models import (
+    Calendar,
     Contact,
     Engagement,
+    Organization,
     Role,
 )
 from coop_local.models.local_models import STATUTS
@@ -56,26 +59,45 @@ def serialize(obj, include):
     return result
 
 
+_roles = []
+_roles_last_update = time()
+
+
 def get_pes_roles_by_slug():
-    url = os.path.join(settings.PES_HOST, 'api/roles/')
-    sys.stdout.write('GET %s ' % url)
+    global _roles, _roles_last_update
 
-    response = requests.get(url)
-    response.raise_for_status()
+    if (time() - _roles_last_update) > 120:
+        url = os.path.join(settings.PES_HOST, 'api/roles/')
+        sys.stdout.write('GET %s ' % url)
 
-    return dict([
-        (role['slug'], role['uuid'])
-        for role in response.json()
-    ])
+        response = requests.get(url)
+        response.raise_for_status()
+        _roles = dict([
+            (role['slug'], role['uuid'])
+            for role in response.json()
+        ])
+        _roles_last_update = time()
+
+    return _roles
+
+
+_legal_statuses = []
+_legal_statuses_last_update = time()
 
 
 def get_pes_legal_statuses():
-    url = os.path.join(settings.PES_HOST, 'api/legal_statuses/')
-    sys.stdout.write('GET %s\n' % url)
+    global _legal_statuses, _legal_statuses_last_update
 
-    response = requests.get(url)
-    response.raise_for_status()
-    return response.json()
+    if (time() - _legal_statuses_last_update) > 120:
+        url = os.path.join(settings.PES_HOST, 'api/legal_statuses/')
+        sys.stdout.write('GET %s\n' % url)
+
+        response = requests.get(url)
+        response.raise_for_status()
+        _legal_statuses = response.json()
+        _legal_statuses_last_update = time()
+
+    return _legal_statuses
 
 
 def get_pes_legal_statuses_by_label():
@@ -252,3 +274,36 @@ def deserialize_contact(content_object, contact, data):
 def deserialize_role(role, data):
     role.uuid = data['uuid']
     role.label = data['label']
+
+
+def get_organization(uuid):
+    try:
+        return Organization.objects.get(uuid=uuid)
+    except Exception:
+        return None
+
+
+def get_organizations(uuids):
+    try:
+        return [
+            organization
+            for organization in Organization.filter(uuid__in=uuids).all()
+        ]
+    except Exception:
+        return []
+
+
+def deserialize_calendar(calendar, data):
+    calendar.uuid = data['uuid']
+    calendar.title = data['title']
+    setattr_from(calendar, 'description', data)
+
+
+def deserialize_event(event, data):
+    event.uuid = data['uuid']
+    event.title = data['title']
+    setattr_from(event, 'description', data)
+    setattr_from(event, 'other_organizations', data)
+    setattr_from(event, 'source_info', data)
+    setattr_from(event, 'organization', data, parse=get_organization)
+    setattr_from(event, 'organizations', data, parse=get_organizations)
