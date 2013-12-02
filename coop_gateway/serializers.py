@@ -354,6 +354,7 @@ def deserialize_exchange(exchange, data):
 
     setattr_from(exchange, 'expiration', data, parse=parse_date)
     setattr_from(exchange, 'description', data)
+<<<<<<< HEAD
 
 
 def deserialize_product(product, data):
@@ -362,3 +363,5 @@ def deserialize_product(product, data):
 
     setattr_from(product, 'description', data)
     setattr_from(product, 'organization', data, parse=get_organization)
+=======
+>>>>>>> Add exchange push
