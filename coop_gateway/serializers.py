@@ -12,8 +12,12 @@ import shortuuid
 from django.conf import settings
 from django.core import serializers
 
+from coop.exchange.models import (
+    EWAY,
+    ETYPE,
+)
+
 from coop_local.models import (
-    Calendar,
     Contact,
     Engagement,
     Organization,
@@ -210,6 +214,36 @@ def serialize_event(event):
     return result
 
 
+def serialize_product(product):
+    result = serialize(product, (
+        'uuid',
+        'title',
+        'description'))
+    result['organization'] = getattr(product.organization, 'uuid', None)
+    return result
+
+
+def serialize_exchange(exchange):
+    result = serialize(exchange, (
+        'uuid',
+        'title',
+        'permanent',
+        'expiration',
+        'description'))
+    result['person'] = getattr(exchange.person, 'uuid', None)
+    result['products'] = [
+        product.uuid
+        for product in exchange.products.all()
+    ]
+    result['methods'] = [
+        method.id
+        for method in exchange.methods.all()
+    ]
+    result['eway'] = EWAY.REVERTED_CHOICES_CONST_DICT[int(exchange.eway)]
+    result['etype'] = ETYPE.REVERTED_CHOICES_CONST_DICT[exchange.etype]
+    return result
+
+
 def setattr_from(obj, attr, data, default=None, parse=lambda x: x):
     if attr in data:
         value = parse(data[attr])
@@ -307,3 +341,14 @@ def deserialize_event(event, data):
     setattr_from(event, 'source_info', data)
     setattr_from(event, 'organization', data, parse=get_organization)
     setattr_from(event, 'organizations', data, parse=get_organizations)
+
+
+def deserialize_exchange(exchange, data):
+    exchange.uuid = data['uuid']
+    exchange.title = data['title']
+    exchange.title = data['permanent']
+    exchange.eway = EWAY.CHOICES_CONST_DICT[data['eway']]
+    exchange.etype = ETYPE.CHOICES_CONST_DICT[data['etype']]
+
+    setattr_from(exchange, 'expiration', data, parse=parse_date)
+    setattr_from(exchange, 'description', data)

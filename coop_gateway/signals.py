@@ -13,6 +13,8 @@ from coop_local.models import (
 from coop_gateway.serializers import (
     serialize_organization,
     serialize_person,
+    serialize_product,
+    serialize_exchange,
     serialize_calendar,
     serialize_event,
 )
@@ -54,6 +56,37 @@ def person_saved(sender, instance, **kwargs):
 
 def person_deleted(sender, instance, **kwargs):
     delete_data('persons/%s/' % instance.uuid)
+
+
+def product_saved(sender, instance, **kwargs):
+    push_data('products/%s/' % instance.uuid,
+              serialize_product(instance))
+
+
+def product_deleted(sender, instance, **kwargs):
+    delete_data('products/%s/' % instance.uuid)
+
+
+def exchange_saved(sender, instance, **kwargs):
+
+    #Ensure organization exist on the pes
+    if instance.organization:
+        organization_saved(None, instance.organization)
+
+    #Ensure person exist on the pes
+    if instance.person:
+        person_saved(None, instance.person)
+
+    #Ensure products exist on the pes
+    for product in instance.products:
+        product_saved(None, product)
+
+    push_data('exchanges/%s/' % instance.uuid,
+              serialize_exchange(instance))
+
+
+def exchange_deleted(sender, instance, **kwargs):
+    delete_data('exchanges/%s/' % instance.uuid)
 
 
 def calendar_saved(sender, instance, **kwargs):

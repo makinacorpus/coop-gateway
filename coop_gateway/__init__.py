@@ -3,20 +3,26 @@ from django.db.models.signals import (
     post_delete,
 )
 from coop_local.models import (
-    Organization,
-    Person,
     Calendar,
     Event,
+    Exchange,
+    Organization,
+    Person,
+    Product,
 )
 from .signals import (
-    organization_saved,
-    organization_deleted,
-    person_saved,
-    person_deleted,
-    calendar_saved,
     calendar_deleted,
-    event_saved,
+    calendar_saved,
     event_deleted,
+    event_saved,
+    exchange_deleted,
+    exchange_saved,
+    organization_deleted,
+    organization_saved,
+    person_deleted,
+    person_saved,
+    product_deleted,
+    product_saved,
 )
 
 
@@ -31,3 +37,9 @@ post_delete.connect(calendar_deleted, Calendar)
 
 post_save.connect(event_saved, Event)
 post_delete.connect(event_deleted, Event)
+
+post_save.connect(product_saved, Product)
+post_delete.connect(product_deleted, Product)
+
+post_save.connect(exchange_saved, Exchange)
+post_delete.connect(exchange_deleted, Exchange)
