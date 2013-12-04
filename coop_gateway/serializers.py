@@ -352,3 +352,11 @@ def deserialize_exchange(exchange, data):
 
     setattr_from(exchange, 'expiration', data, parse=parse_date)
     setattr_from(exchange, 'description', data)
+
+
+def deserialize_product(product, data):
+    product.uuid = data['uuid']
+    product.first_name = data['title']
+
+    setattr_from(product, 'description', data)
+    setattr_from(product, 'organization', data, parse=get_organization)

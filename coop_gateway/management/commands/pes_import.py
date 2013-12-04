@@ -20,30 +20,38 @@ from coop_local.models import (
     Contact,
     Engagement,
     Event,
+    Exchange,
     Organization,
     Person,
+    Product,
     Role,
 )
 
 from ...models import (
     ForeignCalendar,
     ForeignEvent,
+    ForeignExchange,
     ForeignOrganization,
     ForeignPerson,
+    ForeignProduct,
     ForeignRole,
 )
 from ...signals import (
     calendar_saved,
     event_saved,
+    exchange_saved,
     organization_saved,
     person_saved,
+    product_saved,
 )
 from ...serializers import (
     deserialize_contact,
     deserialize_calendar,
     deserialize_event,
+    deserialize_exchange,
     deserialize_organization,
     deserialize_person,
+    deserialize_product,
     deserialize_role,
 )
 
@@ -293,6 +301,34 @@ class PesImportEvents(PesImport):
         post_save.connect(event_saved, Event)
 
 
+class PesImportExchanges(PesImport):
+    endpoint = 'api/exchanges/'
+    model = Exchange
+    foreign_model = ForeignExchange
+    key = 'uuid'
+
+    _deserialize = staticmethod(deserialize_exchange)
+
+    def _save(self, exchange):
+        post_save.disconnect(exchange_saved, Exchange)
+        exchange.save()
+        post_save.connect(exchange_saved, Exchange)
+
+
+class PesImportProducts(PesImport):
+    endpoint = 'api/products/'
+    model = Product
+    foreign_model = ForeignProduct
+    key = 'uuid'
+
+    _deserialize = staticmethod(deserialize_product)
+
+    def _save(self, product):
+        post_save.disconnect(product_saved, Product)
+        product.save()
+        post_save.connect(product_saved, Product)
+
+
 class PesImportCommand(BaseCommand):
     help = 'Imports data from the PES'
 
@@ -318,6 +354,14 @@ class PesImportCommand(BaseCommand):
         handler = PesImportEvents()
         handler.handle()
 
+    def import_products(self):
+        handler = PesImportProducts()
+        handler.handle()
+
+    def import_exchanges(self):
+        handler = PesImportExchanges()
+        handler.handle()
+
     def handle(self, *args, **options):
         self.translations = {}
         self.import_roles()
@@ -325,5 +369,7 @@ class PesImportCommand(BaseCommand):
         self.import_organizations()
         self.import_calendar()
         self.import_events()
+        self.import_products()
+        self.import_exchanges()
 
 Command = PesImportCommand

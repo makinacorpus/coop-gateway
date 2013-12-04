@@ -21,3 +21,11 @@ class ForeignCalendar(models.Model):
 
 class ForeignEvent(models.Model):
     local_object = models.OneToOneField(get_model('coop_local', 'Event'))
+
+
+class ForeignProduct(models.Model):
+    local_object = models.OneToOneField(get_model('coop_local', 'Product'))
+
+
+class ForeignExchange(models.Model):
+    local_object = models.OneToOneField(get_model('coop_local', 'Exchange'))
