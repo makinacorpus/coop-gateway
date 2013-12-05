@@ -13,7 +13,7 @@ from django.db import (
     DatabaseError,
     IntegrityError,
 )
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 
 from coop_local.models import (
     Calendar,
@@ -37,11 +37,17 @@ from ...models import (
     ForeignRole,
 )
 from ...signals import (
+    calendar_deleted,
     calendar_saved,
+    event_deleted,
     event_saved,
+    exchange_deleted,
     exchange_saved,
+    organization_deleted,
     organization_saved,
+    person_deleted,
     person_saved,
+    product_deleted,
     product_saved,
 )
 from ...serializers import (
@@ -140,9 +146,12 @@ class PesImport(object):
 
     @transaction.commit_manually
     def handle(self):
+        keys = []
+
         for data in self.get_data():
+            keys.append(data[self.key])
             try:
-                instance_info = (self.model.__name__, data['uuid'])
+                instance_info = (self.model.__name__, data[self.key])
                 sid = transaction.savepoint()
                 if self._exists(data):
                     sys.stdout.write('Update %s %s ' % instance_info)
@@ -162,7 +171,24 @@ class PesImport(object):
                 sys.stderr.write('%s\n%s\n' % (type(e).__name__, e))
                 transaction.savepoint_rollback(sid)
 
+        self.delete_missing(keys)
+
         transaction.commit()
+
+    def delete_missing(self, keys):
+        for foreign_model in self.foreign_model.objects.all():
+            key = getattr(foreign_model.local_object, self.key, None)
+            if key not in keys:
+                try:
+                    sid = transaction.savepoint()
+                    instance_info = (self.model.__name__, key)
+                    sys.stdout.write('Delete %s %s ' % instance_info)
+                    self._delete(foreign_model.local_object)
+                    sys.stdout.write('Done\n')
+                    transaction.savepoint_commit(sid)
+                except Exception as e:
+                    sys.stderr.write('%s\n%s\n' % (type(e).__name__, e))
+                    transaction.savepoint_rollback(sid)
 
 
 class HasContacts(object):
@@ -191,6 +217,11 @@ class PesImportOrganisations(HasContacts, PesImport):
         post_save.disconnect(organization_saved, Organization)
         organization.save()
         post_save.connect(organization_saved, Organization)
+
+    def _delete(self, organization):
+        post_delete.disconnect(organization_deleted, Organization)
+        organization.delete()
+        post_delete.connect(organization_deleted, Organization)
 
     def _delete_old_engagements(self, organization):
         Engagement.objects.filter(organization=organization).delete()
@@ -235,6 +266,11 @@ class PesImportPersons(HasContacts, PesImport):
         person.save()
         post_save.connect(person_saved, Person)
 
+    def _delete(self, person):
+        post_delete.disconnect(person_deleted, Person)
+        person.delete()
+        post_delete.connect(person_deleted, Person)
+
     def _after_map(self, organization, data):
         self._update_contacts(organization, data)
         self._save(organization)
@@ -253,6 +289,9 @@ class PesImportRoles(PesImport):
 
     def _save(self, role):
         role.save()
+
+    def _delete(self, role):
+        role.delete()
 
     def handle(self):
         for data in self.get_data():
@@ -282,6 +321,11 @@ class PesImportCalendars(PesImport):
         calendar.save()
         post_save.connect(calendar_saved, Calendar)
 
+    def _delete(self, calendar):
+        post_delete.disconnect(calendar_deleted, Calendar)
+        calendar.delete()
+        post_delete.connect(calendar_deleted, Calendar)
+
 
 class PesImportEvents(PesImport):
     endpoint = 'api/events/'
@@ -300,6 +344,11 @@ class PesImportEvents(PesImport):
         event.save()
         post_save.connect(event_saved, Event)
 
+    def _delete(self, event):
+        post_delete.disconnect(event_deleted, Event)
+        event.delete()
+        post_delete.connect(event_deleted, Event)
+
 
 class PesImportExchanges(PesImport):
     endpoint = 'api/exchanges/'
@@ -314,6 +363,11 @@ class PesImportExchanges(PesImport):
         exchange.save()
         post_save.connect(exchange_saved, Exchange)
 
+    def _delete(self, exchange):
+        post_delete.disconnect(exchange_deleted, Exchange)
+        exchange.delete()
+        post_delete.connect(exchange_deleted, Exchange)
+
 
 class PesImportProducts(PesImport):
     endpoint = 'api/products/'
@@ -327,6 +381,11 @@ class PesImportProducts(PesImport):
         post_save.disconnect(product_saved, Product)
         product.save()
         post_save.connect(product_saved, Product)
+
+    def _delete(self, product):
+        post_delete.disconnect(product_deleted, Product)
+        product.delete()
+        post_delete.connect(product_deleted, Product)
 
 
 class PesImportCommand(BaseCommand):
