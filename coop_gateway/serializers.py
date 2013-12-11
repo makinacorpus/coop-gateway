@@ -148,6 +148,18 @@ def serialize_contacts(queryset):
     ]
 
 
+def serialize_location(location):
+    result = serialize(location, (
+        'uuid',
+        'label',
+        'adr1',
+        'adr2',
+        'zipcode',
+        'city',
+        'country'))
+    return result
+
+
 def serialize_members(queryset):
     return [
         {
@@ -276,6 +288,17 @@ def get_contact(uuid):
         return Contact.objects.get(uuid=uuid)
     except Exception:
         return None
+
+
+def deserialize_location(location, data):
+    location.uuid = data['uuid']
+    location.title = data['label']
+
+    setattr_from(location, 'adr1', data)
+    setattr_from(location, 'adr2', data)
+    setattr_from(location, 'zipcode', data)
+    setattr_from(location, 'city', data)
+    setattr_from(location, 'country', data)
 
 
 def deserialize_organization(organization, data):

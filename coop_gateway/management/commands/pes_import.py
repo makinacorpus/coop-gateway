@@ -21,6 +21,7 @@ from coop_local.models import (
     Engagement,
     Event,
     Exchange,
+    Location,
     Organization,
     Person,
     Product,
@@ -31,6 +32,7 @@ from ...models import (
     ForeignCalendar,
     ForeignEvent,
     ForeignExchange,
+    ForeignLocation,
     ForeignOrganization,
     ForeignPerson,
     ForeignProduct,
@@ -43,6 +45,8 @@ from ...signals import (
     event_saved,
     exchange_deleted,
     exchange_saved,
+    location_deleted,
+    location_saved,
     organization_deleted,
     organization_saved,
     person_deleted,
@@ -51,10 +55,11 @@ from ...signals import (
     product_saved,
 )
 from ...serializers import (
-    deserialize_contact,
     deserialize_calendar,
+    deserialize_contact,
     deserialize_event,
     deserialize_exchange,
+    deserialize_location,
     deserialize_organization,
     deserialize_person,
     deserialize_product,
@@ -403,6 +408,25 @@ class PesImportProducts(PesImport):
         post_delete.connect(product_deleted, Product)
 
 
+class PesImportLocations(PesImport):
+    endpoint = 'api/locations/'
+    model = Location
+    foreign_model = ForeignLocation
+    key = 'uuid'
+
+    _deserialize = staticmethod(deserialize_location)
+
+    def _save(self, location):
+        post_save.disconnect(location_saved, Location)
+        location.save()
+        post_save.connect(location_saved, Location)
+
+    def _delete(self, location):
+        post_delete.disconnect(location_deleted, Location)
+        location.delete()
+        post_delete.connect(location_deleted, Location)
+
+
 class PesImportCommand(BaseCommand):
     help = 'Imports data from the PES'
 
@@ -436,8 +460,13 @@ class PesImportCommand(BaseCommand):
         handler = PesImportExchanges()
         handler.handle()
 
+    def import_locations(self):
+        handler = PesImportLocations()
+        handler.handle()
+
     def handle(self, *args, **options):
         self.translations = {}
+        self.import_locations()
         self.import_roles()
         self.import_persons()
         self.import_organizations()
