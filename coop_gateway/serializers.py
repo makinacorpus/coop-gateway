@@ -211,6 +211,10 @@ def serialize_event(event):
         organization.uuid
         for organization in event.organizations.all()
     ]
+    result['occurrences'] = [
+        serialize(occurrence, ('start_time', 'end_time'))
+        for occurrence in event.occurrence_set.all()
+    ]
 
     return result
 

@@ -339,6 +339,21 @@ class PesImportEvents(PesImport):
         event.calendar = Calendar.objects.get(uuid=data['calendar'])
         self._save(event)
 
+    def is_valid_occurrence_data(self, occurrence_data):
+        return occurrence_data.get('start_time') \
+            and occurrence_data.get('end_time')
+
+    def _after_map(self, event, data):
+        if 'occurrences' in data:
+            event.occurrence_set.filter().delete()
+            if data['occurrences']:
+                for occurrence_data in data['occurrences']:
+                    if self.is_valid_occurrence_data(occurrence_data):
+                        event.add_occurrences(
+                            start_time=occurrence_data['start_time'],
+                            end_time=occurrence_data['end_time']
+                        )
+
     def _save(self, event):
         post_save.disconnect(event_saved, Event)
         event.save()
