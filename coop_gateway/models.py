@@ -29,3 +29,7 @@ class ForeignProduct(models.Model):
 
 class ForeignExchange(models.Model):
     local_object = models.OneToOneField(get_model('coop_local', 'Exchange'))
+
+
+class ForeignLocation(models.Model):
+    local_object = models.OneToOneField(get_model('coop_local', 'Location'))

@@ -11,12 +11,13 @@ from coop_local.models import (
 )
 
 from coop_gateway.serializers import (
+    serialize_calendar,
+    serialize_event,
+    serialize_exchange,
+    serialize_location,
     serialize_organization,
     serialize_person,
     serialize_product,
-    serialize_exchange,
-    serialize_calendar,
-    serialize_event,
 )
 
 
@@ -125,3 +126,11 @@ def event_saved(sender, instance, **kwargs):
 
 def event_deleted(sender, instance, **kwargs):
     delete_data('events/%s/' % instance.uuid)
+
+
+def location_saved(sender, instance, **kwargs):
+    push_data('locations/%s/' % instance.uuid, serialize_location(instance))
+
+
+def location_deleted(sender, instance, **kwargs):
+    delete_data('locations/%s/' % instance.uuid)
