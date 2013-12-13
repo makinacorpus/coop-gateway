@@ -27,7 +27,7 @@ def endpoint_url(endpoint):
 
 
 def push_data(endpoint, data):
-    print('PUT %s\n%s' % (endpoint_url(endpoint), data))
+    print('PUT %s' % endpoint_url(endpoint))
     requests.put(endpoint_url(endpoint), data=json.dumps(data))
 
 
