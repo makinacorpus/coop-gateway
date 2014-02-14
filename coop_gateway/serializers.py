@@ -125,7 +125,8 @@ def translate_role_uuid(role_uuid):
         (role.uuid, role.slug)
         for role in Role.objects.all()
     ])
-    return pes_roles_by_slug[local_roles_by_uuid[role_uuid]]
+    local_role = local_roles_by_uuid.get(role_uuid, None)
+    return pes_roles_by_slug.get(local_role, None)
 
 
 def status_slug(status):
